@@ -1,0 +1,64 @@
+x-celestia_app: &celestia_app
+  build:
+    context: .
+    target: celestia-app
+  environment:
+    CELESTIA_APPD_CHAIN_ID: devnet-2
+    CELESTIA_APPD_KEYRING_BACKEND: test
+    CELESTIA_APPD_P2P_SEEDS: $SEEDS
+    CELESTIA_APPD_RPC_LADDR: tcp://0.0.0.0:26657
+    MONIKER: $MONIKER
+  volumes:
+    - ./scripts:/app/scripts
+    - ./celestia_app/config:/home/appuser/.celestia-app/config
+    - ./celestia_app/keys:/home/appuser/.celestia-app//keyring-test
+    - celestia_app_data:/home/appuser/.celestia-app/data
+
+x-celestia_node: &celestia_node
+  build:
+    context: .
+    target: celestia-node
+    args:
+      CELESTIA_NODE_GIT_TAG: v0.1.0
+  environment:
+    CELESTIA_CORE_REMOTE: tcp://celestia_app_start:26657
+  volumes:
+    - ./celestia_node:/home/appuser/.celestia-full
+    - celestia_node_data:/home/appuser/.celestia-full/data
+
+
+services:
+  celestia_app:
+    <<: *celestia_app
+
+  celestia_app_init:
+    <<: *celestia_app
+    entrypoint: ["./scripts/init-celestia-app.sh"]
+
+  celestia_app_start:
+    <<: *celestia_app
+    command: ["start"]
+    ports:
+      - "9090:9090"
+      - "1317:1317"
+      - "26656:26656"
+      - "26657:26657"
+
+  create_validator:
+    <<: *celestia_app
+    entrypoint: ["./scripts/create-validator.sh"]
+
+  celestia_node:
+    <<: *celestia_node
+
+  celestia_node_full_start:
+    <<: *celestia_node
+    command: ["./scripts/start-celestia-full-node.sh"]
+    depends_on:
+      - celestia_app_start
+    # Might fail if celestia app has not finished start up.
+    restart: on-failure
+
+volumes:
+  celestia_app_data:
+  celestia_node_data:
